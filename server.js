@@ -20,7 +20,7 @@ app.get('/api/solar', async (req, res) => {
     const xrayHistory = xray.data
         .filter(d => d.energy === "0.1-0.8nm")
         .slice(-30)
-        ..map(d => ({
+        .map(d => ({
         time: d.time_tag,
         val: d.flux || 0.00000001 // Zabezpieczenie przed zerem (logarytm!)
     }));
