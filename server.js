@@ -12,15 +12,17 @@ app.get('/api/solar', async (req, res) => {
             axios.get('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json').catch(() => ({data:[]})),
             axios.get('https://services.swpc.noaa.gov/products/json/flare-probabilities.json').catch(() => ({data:[]})),
             axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json').catch(() => ({data:{}})),
-            axios.get('https://services.swpc.noaa.gov/json/goes/primary/xrays-1-minute.json').catch(() => ({data:[]}))
+            // Zmieniamy na stabilniejszy endpoint 3-dniowy
+            axios.get('https://services.swpc.noaa.gov/json/goes/primary/xrays-3-day.json').catch(() => ({data:[]}))
         ]);
 
         const latestIndices = indices.data.length ? indices.data[indices.data.length - 1] : {sfi: "---"};
         const kpRows = kp.data.filter(r => r && !isNaN(parseFloat(r[1])));
         
-        const xrayHistory = xray.data
+        // Stabilniejsze filtrowanie X-Ray
+        const xrayHistory = (xray.data || [])
             .filter(d => d.energy === "0.1-0.8nm")
-            .slice(-30)
+            .slice(-40) // Ostatnie 40 odczytów
             .map(d => ({
                 time: d.time_tag,
                 val: d.flux || 0.00000001
@@ -35,8 +37,8 @@ app.get('/api/solar', async (req, res) => {
             xrayFull: xrayHistory
         });
     } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Server Error" });
+        console.error("Backend Error:", e);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
