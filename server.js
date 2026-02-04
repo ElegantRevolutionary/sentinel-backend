@@ -95,7 +95,8 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     if (type === 'radar') {
         url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
     } else if (type === 'clouds') {
-        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_1.png`;
+        // Zmieniamy na filtr 1 i schemat 0, to daje klasyczne białe chmury
+        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/1/0_0.png`;
     } else if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
@@ -122,26 +123,26 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
 app.get('/api/map/info', async (req, res) => {
     try {
         const response = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 3000
         });
         const data = await response.json();
-        
-        // Wyciągamy najnowszy czas dla RADARU
-        const radarTs = data.radar.past[data.radar.past.length - 1].time;
-        
-        // Wyciągamy najnowszy czas dla SATELITY (Chmur)
-        // Czasem "satellite" ma inne dane niż radar!
-        const satelliteTs = data.satellite.past[data.satellite.past.length - 1].time;
-
         res.json({ 
-            radarTs, 
-            satelliteTs,
+            radarTs: data.radar.past[data.radar.past.length - 1].time, 
+            satelliteTs: data.satellite.past[data.satellite.past.length - 1].time,
             status: "ok" 
         });
     } catch (e) {
+        // Jeśli API leży, obliczamy czas: 
+        // Satelita potrzebuje czasu sprzed ok. 20-30 minut, zaokrąglonego do 10 min.
         const now = Math.floor(Date.now() / 1000);
-        const fallback = now - (now % 600);
-        res.json({ radarTs: fallback, satelliteTs: fallback, status: "error" });
+        const calibratedTs = (now - (now % 600)) - 1200; 
+
+        res.json({ 
+            radarTs: calibratedTs, 
+            satelliteTs: calibratedTs, 
+            status: "fallback_calculated" 
+        });
     }
 });
 
