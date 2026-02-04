@@ -81,6 +81,72 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
+// PROXY DLA RADARU (RainViewer)
+app.get('/api/map/radar/:ts/:z/:x/:y', async (req, res) => {
+    const { ts, z, x, y } = req.params;
+    // Ważne: RainViewer używa formatu {z}/{x}/{y} - upewnij się, że kolejność jest zgodna z Leafletem
+    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Source responded with error');
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        res.set('Content-Type', 'image/png');
+        res.set('Cache-Control', 'public, max-age=300'); // Cache na 5 min, żeby nie obciążać API
+        res.send(buffer);
+    } catch (e) {
+        console.error("Radar Proxy Error:", e.message);
+        res.status(500).send("Error fetching radar tile");
+    }
+});
+
+// PROXY DLA TEMPERATURY (OpenWeatherMap)
+app.get('/api/map/temp/:z/:x/:y', async (req, res) => {
+    const { z, x, y } = req.params;
+    const API_KEY = "b1b15e88fa7972254124650b73bb9a65"; 
+    const url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('OWM responded with error');
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        res.set('Content-Type', 'image/png');
+        res.set('Cache-Control', 'public, max-age=3600'); // Temperatura zmienia się rzadziej - cache 1h
+        res.send(buffer);
+    } catch (e) {
+        console.error("Temp Proxy Error:", e.message);
+        res.status(500).send("Error fetching temp tile");
+    }
+});
+
+// PROXY DLA CHMUR (RainViewer Satelita)
+app.get('/api/map/clouds/:ts/:z/:x/:y', async (req, res) => {
+    const { ts, z, x, y } = req.params;
+    // 'satellite' zamiast 'radar' w URL RainViewer
+    const url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Source responded with error');
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        res.set('Content-Type', 'image/png');
+        res.set('Cache-Control', 'public, max-age=600'); // Cache na 10 min
+        res.send(buffer);
+    } catch (e) {
+        console.error("Clouds Proxy Error:", e.message);
+        res.status(500).send("Error fetching cloud tile");
+    }
+});
+
 app.get('/api/pkp/:id', async (req, res) => {
     try {
         const url = `https://v6.db.transport.rest/stops/${req.params.id}/departures?duration=240&results=15`;
