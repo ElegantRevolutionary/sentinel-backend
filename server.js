@@ -86,31 +86,36 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
-app.get('/api/map/:type/:ts?/:z/:x/:y', async (req, res) => {
+app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     const { type, ts, z, x, y } = req.params;
+    
+    // Budujemy URL w zależności od typu
     let url;
-
     if (type === 'radar') {
-        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/{y}/2/1_1.png`;
     } else if (type === 'clouds') {
-        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/{y}/2/1_1.png`;
     } else if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
     }
 
     try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`External API status: ${response.status}`);
-        
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' } // DODAJEMY TO, żeby RainViewer nas nie odrzucił
+        });
 
+        if (!response.ok) throw new Error('Source status: ' + response.status);
+
+        const arrayBuffer = await response.arrayBuffer();
         res.set('Content-Type', 'image/png');
-        res.send(buffer);
-    } catch (error) {
-        console.error(`Proxy Error [${type}]:`, error.message);
-        res.status(500).json({ error: "Failed to fetch tile", details: error.message });
+        res.send(Buffer.from(arrayBuffer));
+    } catch (e) {
+        console.error(`Błąd kafelka ${type}:`, e.message);
+        // Jeśli nie ma obrazka, zwracamy przezroczysty 1x1 PNG, żeby nie było błędów w konsoli
+        const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        res.set('Content-Type', 'image/png');
+        res.send(transparentPixel);
     }
 });
 
