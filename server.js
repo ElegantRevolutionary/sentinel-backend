@@ -91,7 +91,7 @@ app.get('/api/map/:type/:ts?/:z/:x/:y', async (req, res) => {
     } else if (type === 'clouds') {
         url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
     } else if (type === 'temp') {
-        const API_KEY = "b1b15e88fa7972254124650b73bb9a65";
+        const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
     }
 
