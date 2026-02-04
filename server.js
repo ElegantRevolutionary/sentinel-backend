@@ -91,11 +91,11 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     
     // Budujemy URL w zależności od typu
     let url;
-    if (type === 'radar') {
-        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/{y}/2/1_1.png`;
-    } else if (type === 'clouds') {
-        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/{y}/2/1_1.png`;
-    } else if (type === 'temp') {
+   // Poprawne linki dla RainViewer:
+const url = type === 'radar' 
+    ? `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`
+    : `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+    if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
     }
@@ -119,42 +119,34 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     }
 });
 
-// Nowy endpoint do pobierania aktualnego czasu mapy
 app.get('/api/map/info', async (req, res) => {
-    // 1. Zawsze ustawiamy nagłówek JSON, żeby przeglądarka wiedziała co odbiera
-    res.setHeader('Content-Type', 'application/json');
-
     try {
-        const response = await fetch("https://api.rainviewer.com/public/maps.json", {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            timeout: 5000 // Nie czekaj w nieskończoność
+        // Zmieniamy endpoint na wersję "weather-maps" - jest stabilniejsza
+        const response = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36' }
         });
-
-        if (!response.ok) throw new Error('RainViewer status: ' + response.status);
-
         const data = await response.json();
         
-        // Sprawdzenie czy dane są tablicą i mają elementy
-        if (Array.isArray(data) && data.length > 0) {
-            const lastTs = data[data.length - 1];
-            return res.json({ ts: lastTs, status: "ok" });
-        } 
-        
-        throw new Error('Pusta tablica z RainViewer');
+        // W tym API struktura jest inna: data.radar.past lub data.satellite.past
+        let ts;
+        if (data.radar && data.radar.past && data.radar.past.length > 0) {
+            ts = data.radar.past[data.radar.past.length - 1].time;
+        } else if (data.satellite && data.satellite.past && data.satellite.past.length > 0) {
+            ts = data.satellite.past[data.satellite.past.length - 1].time;
+        }
 
+        if (ts) {
+            res.json({ ts, status: "ok" });
+        } else {
+            throw new Error("No TS in weather-maps.json");
+        }
     } catch (e) {
-        // SYSTEM AWARYJNY: Jeśli API RainViewer padnie lub fetch zawiedzie,
-        // generujemy przybliżony timestamp (aktualny czas zaokrąglony do 10 min wstecz)
-        // Dzięki temu front zawsze dostanie liczbę i mapa spróbuje się załadować.
-        const backupTs = Math.floor(Date.now() / 1000 / 600) * 600;
+        // Jeśli to też padnie, musimy użyć czasu, który NA PEWNO istnieje (zaokrąglony do 10 min wstecz)
+        // RainViewer przechowuje kafelki co 10 minut (np. :00, :10, :20...)
+        const now = Math.floor(Date.now() / 1000);
+        const backupTs = now - (now % 600) - 600; // 10-20 minut temu (bezpieczniej)
         
-        console.error("Meteo Info Error, wysyłam backupTS:", e.message);
-        
-        return res.json({ 
-            ts: backupTs, 
-            status: "backup",
-            msg: e.message 
-        });
+        res.json({ ts: backupTs, status: "emergency_fallback" });
     }
 });
 
