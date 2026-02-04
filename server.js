@@ -124,6 +124,19 @@ app.get('/api/map/info', async (req, res) => {
     }
 });
 
+app.get('/api/meteo', async (req, res) => {
+    const { lat, lon } = req.query;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,apparent_temperature,dew_point_2m,uv_index,cloud_cover,precipitation,snowfall&hourly=temperature_2m,surface_pressure,relative_humidity_2m&daily=precipitation_sum,snowfall_sum&timezone=auto&forecast_days=3&models=icon_seamless`;
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ error: "Meteo Proxy Failed" });
+    }
+});
+
 app.get('/api/pkp/:id', async (req, res) => {
     try {
         const url = `https://v6.db.transport.rest/stops/${req.params.id}/departures?duration=240&results=15`;
