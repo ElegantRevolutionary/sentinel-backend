@@ -89,20 +89,21 @@ app.get('/api/solar', async (req, res) => {
 app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     const { type, ts, z, x, y } = req.params;
     
-    // Budujemy URL w zależności od typu
-    let url;
-   // Poprawne linki dla RainViewer:
-const url = type === 'radar' 
-    ? `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`
-    : `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
-    if (type === 'temp') {
+    let url; // Tworzymy zmienną raz
+
+    // Przypisujemy wartość (bez słowa const/let przed 'url')
+    if (type === 'radar') {
+        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+    } else if (type === 'clouds') {
+        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+    } else if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
     }
 
     try {
         const response = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' } // DODAJEMY TO, żeby RainViewer nas nie odrzucił
+            headers: { 'User-Agent': 'Mozilla/5.0' }
         });
 
         if (!response.ok) throw new Error('Source status: ' + response.status);
@@ -112,7 +113,6 @@ const url = type === 'radar'
         res.send(Buffer.from(arrayBuffer));
     } catch (e) {
         console.error(`Błąd kafelka ${type}:`, e.message);
-        // Jeśli nie ma obrazka, zwracamy przezroczysty 1x1 PNG, żeby nie było błędów w konsoli
         const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
         res.set('Content-Type', 'image/png');
         res.send(transparentPixel);
