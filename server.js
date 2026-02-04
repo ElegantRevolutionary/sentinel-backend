@@ -110,6 +110,20 @@ app.get('/api/map/:type/:ts?/:z/:x/:y', async (req, res) => {
     }
 });
 
+// Nowy endpoint do pobierania aktualnego czasu mapy
+app.get('/api/map/info', async (req, res) => {
+    try {
+        const response = await fetch("https://api.rainviewer.com/public/maps.json");
+        const data = await response.json();
+        const ts = data[data.length - 1]; // bierzemy ostatni czas
+        res.json({ ts });
+    } catch (e) {
+        // Jeśli RainViewer padnie, dajemy "awaryjny" timestamp (zaokrąglony do 10 min)
+        const emergencyTs = Math.floor(Date.now() / 600000) * 600;
+        res.json({ ts: emergencyTs });
+    }
+});
+
 app.get('/api/pkp/:id', async (req, res) => {
     try {
         const url = `https://v6.db.transport.rest/stops/${req.params.id}/departures?duration=240&results=15`;
