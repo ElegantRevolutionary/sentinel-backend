@@ -114,10 +114,11 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
         res.set('Content-Type', 'image/png');
         res.send(Buffer.from(arrayBuffer));
     } catch (e) {
-        console.error(`Błąd kafelka ${type}:`, e.message);
+        // Każdy inny błąd też kończy się pustym obrazkiem
         const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
         res.set('Content-Type', 'image/png');
         res.send(transparentPixel);
+    }
     }
 });
 
