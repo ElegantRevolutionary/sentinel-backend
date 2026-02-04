@@ -119,7 +119,6 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
         res.set('Content-Type', 'image/png');
         res.send(transparentPixel);
     }
-    }
 });
 
 app.get('/api/map/info', async (req, res) => {
