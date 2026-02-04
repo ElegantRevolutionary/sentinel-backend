@@ -4,7 +4,12 @@ const axios = require('axios');
 const app = express();
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
-app.use(cors());
+const cors = require('cors');
+app.use(cors({
+    origin: '*', // Po testach usunąć
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type']
+}));
 
 app.get('/api/solar', async (req, res) => {
     try {
