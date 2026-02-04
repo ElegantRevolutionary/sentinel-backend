@@ -95,7 +95,7 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     if (type === 'radar') {
         url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
     } else if (type === 'clouds') {
-        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_1.png`;
     } else if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
@@ -121,32 +121,27 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
 
 app.get('/api/map/info', async (req, res) => {
     try {
-        // Zmieniamy endpoint na wersję "weather-maps" - jest stabilniejsza
         const response = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36' }
+            headers: { 'User-Agent': 'Mozilla/5.0' }
         });
         const data = await response.json();
         
-        // W tym API struktura jest inna: data.radar.past lub data.satellite.past
-        let ts;
-        if (data.radar && data.radar.past && data.radar.past.length > 0) {
-            ts = data.radar.past[data.radar.past.length - 1].time;
-        } else if (data.satellite && data.satellite.past && data.satellite.past.length > 0) {
-            ts = data.satellite.past[data.satellite.past.length - 1].time;
-        }
-
-        if (ts) {
-            res.json({ ts, status: "ok" });
-        } else {
-            throw new Error("No TS in weather-maps.json");
-        }
-    } catch (e) {
-        // Jeśli to też padnie, musimy użyć czasu, który NA PEWNO istnieje (zaokrąglony do 10 min wstecz)
-        // RainViewer przechowuje kafelki co 10 minut (np. :00, :10, :20...)
-        const now = Math.floor(Date.now() / 1000);
-        const backupTs = now - (now % 600) - 600; // 10-20 minut temu (bezpieczniej)
+        // Wyciągamy najnowszy czas dla RADARU
+        const radarTs = data.radar.past[data.radar.past.length - 1].time;
         
-        res.json({ ts: backupTs, status: "emergency_fallback" });
+        // Wyciągamy najnowszy czas dla SATELITY (Chmur)
+        // Czasem "satellite" ma inne dane niż radar!
+        const satelliteTs = data.satellite.past[data.satellite.past.length - 1].time;
+
+        res.json({ 
+            radarTs, 
+            satelliteTs,
+            status: "ok" 
+        });
+    } catch (e) {
+        const now = Math.floor(Date.now() / 1000);
+        const fallback = now - (now % 600);
+        res.json({ radarTs: fallback, satelliteTs: fallback, status: "error" });
     }
 });
 
