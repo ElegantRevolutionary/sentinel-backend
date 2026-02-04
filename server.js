@@ -92,11 +92,12 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     let url; // Tworzymy zmienną raz
 
     // Przypisujemy wartość (bez słowa const/let przed 'url')
-    if (type === 'radar') {
+   if (type === 'radar') {
         url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
     } else if (type === 'clouds') {
-        // Zmieniamy na filtr 1 i schemat 0, to daje klasyczne białe chmury
-        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/1/0_0.png`;
+        // Używamy słowa 'satellite' i zamiast zmiennej ${ts} dajemy 'latest'
+        // To jest najbardziej odporny sposób na pobranie chmur
+        url = `https://tilecache.rainviewer.com/v2/satellite/latest/256/${z}/${x}/${y}/0/0_1.png`;
     } else if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
@@ -162,7 +163,14 @@ app.get('/api/meteo', async (req, res) => {
 app.get('/api/pkp/:id', async (req, res) => {
     try {
         const url = `https://v6.db.transport.rest/stops/${req.params.id}/departures?duration=240&results=15`;
-        const response = await axios.get(url);
+        const response = await fetch(pkpUrl, {
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Referer': 'https://portalpasazera.pl/',
+        'Origin': 'https://portalpasazera.pl/'
+    }
+});
         res.json(response.data);
     } catch (error) {
         res.status(503).json({ error: 'PKP Offline' });
