@@ -116,15 +116,40 @@ app.get('/api/map/:type/:ts?/:z/:x/:y', async (req, res) => {
 
 // Nowy endpoint do pobierania aktualnego czasu mapy
 app.get('/api/map/info', async (req, res) => {
+    // 1. Zawsze ustawiamy nagłówek JSON, żeby przeglądarka wiedziała co odbiera
+    res.setHeader('Content-Type', 'application/json');
+
     try {
-        const response = await fetch("https://api.rainviewer.com/public/maps.json");
+        const response = await fetch("https://api.rainviewer.com/public/maps.json", {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 5000 // Nie czekaj w nieskończoność
+        });
+
+        if (!response.ok) throw new Error('RainViewer status: ' + response.status);
+
         const data = await response.json();
-        const ts = data[data.length - 1]; // bierzemy ostatni czas
-        res.json({ ts });
+        
+        // Sprawdzenie czy dane są tablicą i mają elementy
+        if (Array.isArray(data) && data.length > 0) {
+            const lastTs = data[data.length - 1];
+            return res.json({ ts: lastTs, status: "ok" });
+        } 
+        
+        throw new Error('Pusta tablica z RainViewer');
+
     } catch (e) {
-        // Jeśli RainViewer padnie, dajemy "awaryjny" timestamp (zaokrąglony do 10 min)
-        const emergencyTs = Math.floor(Date.now() / 600000) * 600;
-        res.json({ ts: emergencyTs });
+        // SYSTEM AWARYJNY: Jeśli API RainViewer padnie lub fetch zawiedzie,
+        // generujemy przybliżony timestamp (aktualny czas zaokrąglony do 10 min wstecz)
+        // Dzięki temu front zawsze dostanie liczbę i mapa spróbuje się załadować.
+        const backupTs = Math.floor(Date.now() / 1000 / 600) * 600;
+        
+        console.error("Meteo Info Error, wysyłam backupTS:", e.message);
+        
+        return res.json({ 
+            ts: backupTs, 
+            status: "backup",
+            msg: e.message 
+        });
     }
 });
 
