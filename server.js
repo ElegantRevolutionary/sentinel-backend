@@ -115,10 +115,11 @@ app.get('/api/map/info', async (req, res) => {
         const data = await response.json();
         
         res.json({ 
-            radarFrames: data.radar.past.map(f => f.time), // Cała lista klatek
-            radarTs: data.radar.past[data.radar.past.length - 1].time, 
-            status: "ok" 
-        });
+    // Bierzemy co drugą klatkę (filter), żeby odciążyć przeglądarkę
+    radarFrames: data.radar.past.filter((_, i) => i % 2 === 0).map(f => f.time),
+    radarTs: data.radar.past[data.radar.past.length - 1].time, 
+    status: "ok" 
+});
     } catch (e) {
         res.status(500).json({ error: "API Error" });
     }
