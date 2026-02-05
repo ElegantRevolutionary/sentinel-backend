@@ -86,54 +86,46 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
-app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
-    const { type, ts, z, x, y } = req.params;
-    
-    let url; // Tworzymy zmienną raz
-
-    // Przypisujemy wartość (bez słowa const/let przed 'url')
-   if (type === 'radar') {
-        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
-    } else if (type === 'clouds') {
-        // Używamy słowa 'satellite' i zamiast zmiennej ${ts} dajemy 'latest'
-        // To jest najbardziej odporny sposób na pobranie chmur
-        url = `https://tilecache.rainviewer.com/v2/satellite/latest/256/${z}/${x}/${y}/0/0_1.png`;
-    } else if (type === 'temp') {
-        const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
-        url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
-    }
-
+app.get('/api/map/info', async (req, res) => {
     try {
-        const response = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+        const response = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 3000
         });
-
-        if (!response.ok) throw new Error('Source status: ' + response.status);
-
-        const arrayBuffer = await response.arrayBuffer();
-        res.set('Content-Type', 'image/png');
-        res.send(Buffer.from(arrayBuffer));
+        const data = await response.json();
+        res.json({ 
+            radarTs: data.radar.past[data.radar.past.length - 1].time, 
+            satelliteTs: data.satellite.past[data.satellite.past.length - 1].time,
+            status: "ok" 
+        });
     } catch (e) {
-        // Każdy inny błąd też kończy się pustym obrazkiem
-        const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-        res.set('Content-Type', 'image/png');
-        res.send(transparentPixel);
+        const now = Math.floor(Date.now() / 1000);
+        const calibratedTs = (now - (now % 600)) - 1200; 
+        res.json({ 
+            radarTs: calibratedTs, 
+            satelliteTs: calibratedTs, 
+            status: "fallback_calculated" 
+        });
     }
 });
 
+// --- TO MUSI BYĆ DRUGIE ---
 app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     const { type, ts, z, x, y } = req.params;
-    let url;
+    let url = ""; // inicjalizacja pustym stringiem
 
     if (type === 'radar') {
         url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
     } else if (type === 'clouds') {
-        // ZMIANA: Używamy przekazanego timestampu (ts) zamiast 'latest'
-        // i zmieniamy schemat kolorów na 0/0_0.png (standard dla satelity)
         url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_0.png`;
     } else if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
+    }
+
+    // DODAJ TO: Zabezpieczenie przed pustym URL
+    if (!url) {
+        return res.status(400).json({ error: "Invalid map type" });
     }
 
     try {
