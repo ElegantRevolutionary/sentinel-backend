@@ -121,29 +121,38 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     }
 });
 
-app.get('/api/map/info', async (req, res) => {
-    try {
-        const response = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            timeout: 3000
-        });
-        const data = await response.json();
-        res.json({ 
-            radarTs: data.radar.past[data.radar.past.length - 1].time, 
-            satelliteTs: data.satellite.past[data.satellite.past.length - 1].time,
-            status: "ok" 
-        });
-    } catch (e) {
-        // Jeśli API leży, obliczamy czas: 
-        // Satelita potrzebuje czasu sprzed ok. 20-30 minut, zaokrąglonego do 10 min.
-        const now = Math.floor(Date.now() / 1000);
-        const calibratedTs = (now - (now % 600)) - 1200; 
+app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
+    const { type, ts, z, x, y } = req.params;
+    let url;
 
-        res.json({ 
-            radarTs: calibratedTs, 
-            satelliteTs: calibratedTs, 
-            status: "fallback_calculated" 
+    if (type === 'radar') {
+        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+    } else if (type === 'clouds') {
+        // ZMIANA: Używamy przekazanego timestampu (ts) zamiast 'latest'
+        // i zmieniamy schemat kolorów na 0/0_0.png (standard dla satelity)
+        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_0.png`;
+    } else if (type === 'temp') {
+        const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
+        url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
+    }
+
+    try {
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 5000 // Dodajemy timeout, żeby Render nie wisiał
         });
+
+        if (!response.ok) throw new Error('Source status: ' + response.status);
+
+        const arrayBuffer = await response.arrayBuffer();
+        res.set('Content-Type', 'image/png');
+        res.set('Cache-Control', 'public, max-age=600'); // Cache na 10 min, odciąży serwer
+        res.send(Buffer.from(arrayBuffer));
+    } catch (e) {
+        // Przezroczysty pixel w razie błędu
+        const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        res.set('Content-Type', 'image/png');
+        res.send(transparentPixel);
     }
 });
 
