@@ -86,26 +86,41 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
+// app.get('/api/map/info', async (req, res) => {
+//     try {
+//         const response = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
+//             headers: { 'User-Agent': 'Mozilla/5.0' },
+//             timeout: 3000
+//         });
+//         const data = await response.json();
+//         res.json({ 
+//             radarTs: data.radar.past[data.radar.past.length - 1].time, 
+//             satelliteTs: data.satellite.past[data.satellite.past.length - 1].time,
+//             status: "ok" 
+//         });
+//     } catch (e) {
+//         const now = Math.floor(Date.now() / 1000);
+//         const calibratedTs = (now - (now % 600)) - 1200; 
+//         res.json({ 
+//             radarTs: calibratedTs, 
+//             satelliteTs: calibratedTs, 
+//             status: "fallback_calculated" 
+//         });
+//     }
+// });
+
 app.get('/api/map/info', async (req, res) => {
     try {
-        const response = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            timeout: 3000
-        });
+        const response = await fetch("https://api.rainviewer.com/public/weather-maps.json");
         const data = await response.json();
+        
         res.json({ 
+            radarFrames: data.radar.past.map(f => f.time), // Cała lista klatek
             radarTs: data.radar.past[data.radar.past.length - 1].time, 
-            satelliteTs: data.satellite.past[data.satellite.past.length - 1].time,
             status: "ok" 
         });
     } catch (e) {
-        const now = Math.floor(Date.now() / 1000);
-        const calibratedTs = (now - (now % 600)) - 1200; 
-        res.json({ 
-            radarTs: calibratedTs, 
-            satelliteTs: calibratedTs, 
-            status: "fallback_calculated" 
-        });
+        res.status(500).json({ error: "API Error" });
     }
 });
 
