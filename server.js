@@ -160,21 +160,9 @@ app.get('/api/meteo', async (req, res) => {
     }
 });
 
-app.get('/api/pkp/:id', async (req, res) => {
-    try {
-        const url = `https://v6.db.transport.rest/stops/${req.params.id}/departures?duration=240&results=15`;
-        const response = await fetch(pkpUrl, {
-    headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Referer': 'https://portalpasazera.pl/',
-        'Origin': 'https://portalpasazera.pl/'
-    }
-});
-        res.json(response.data);
-    } catch (error) {
-        res.status(503).json({ error: 'PKP Offline' });
-    }
+app.get('/api/pkp/:stationId', (req, res) => {
+    // Nie robimy fetch, po prostu od razu odpowiadamy
+    res.json({ status: "offline", message: "Blokada regionalna PKP" });
 });
 
 const PORT = process.env.PORT || 3000;
