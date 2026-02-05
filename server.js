@@ -116,12 +116,17 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
 
     if (type === 'radar') {
         url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
-    } else if (type === 'clouds') {
-        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_0.png`;
+   } else if (type === 'clouds') {
+        // Próbujemy pobrać konkretny TS, a jeśli nie, RainViewer przekieruje nas
+        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/{y}/0/0_0.png`;
     } else if (type === 'temp') {
         const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
         url = `https://tile.openweathermap.org/map/temp_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
-    }
+    } else if (type === 'clouds_owm') {
+    const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
+    // Warstwa chmur z OpenWeatherMap (standardowy model kafelków)
+    url = `https://tile.openweathermap.org/map/clouds_new/${z}/${x}/${y}.png?appid=${API_KEY}`;
+}
 
     // DODAJ TO: Zabezpieczenie przed pustym URL
     if (!url) {
