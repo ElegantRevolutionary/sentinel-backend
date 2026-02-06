@@ -45,11 +45,16 @@ app.get('/api/solar', async (req, res) => {
 // --- 2. RADAR INFO (Naprawione 500) ---
 app.get('/api/map/info', async (req, res) => {
     try {
-        const response = await axios.get('https://api.rainviewer.com/public/weather-maps.json', { timeout: 5000 });
-        const data = response.data;
+        const response = await axios.get('https://api.rainviewer.com/public/weather-maps.json', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Sentinel-Dashboard/1.0)' },
+            timeout: 5000 
+        });
         
-        const past = data.radar.past.map(f => f.time);
-        const forecast = data.radar.forecast.map(f => f.time);
+        const data = response.data;
+        if (!data || !data.radar) throw new Error("Błędny format danych RainViewer");
+
+        const past = data.radar.past ? data.radar.past.map(f => f.time) : [];
+        const forecast = data.radar.forecast ? data.radar.forecast.map(f => f.time) : [];
         
         res.json({ 
             radarFrames: [...past, ...forecast],
@@ -58,7 +63,14 @@ app.get('/api/map/info', async (req, res) => {
         });
     } catch (err) {
         console.error("Radar Error:", err.message);
-        res.status(500).json({ error: "Radar source down" });
+        // FALLBACK: Jeśli API leży, wyślij wygenerowany timestamp sprzed 10 min
+        const now = Math.floor(Date.now() / 1000);
+        const fallbackTs = now - (now % 600);
+        res.json({ 
+            radarFrames: [fallbackTs],
+            forecastStartIndex: 1,
+            status: "fallback" 
+        });
     }
 });
 
