@@ -86,25 +86,53 @@ app.get('/api/meteo', async (req, res) => {
     }
 });
 
-// --- 4. MAP TILES PROXY ---
+// --- 4. MAP TILES PROXY (Zoptymalizowany pod kątem limitów i stabilności) ---
 app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     const { type, ts, z, x, y } = req.params;
     let url = "";
 
-    if (type === 'radar') url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
-    else if (type === 'clouds') url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_0.png`;
-    else if (type === 'temp' || type === 'clouds_owm') {
+    // Wybór źródła
+    if (type === 'radar') {
+        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+    } else if (type === 'clouds') {
+        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_0.png`;
+    } else if (type === 'temp' || type === 'clouds_owm') {
         const layer = type === 'temp' ? 'temp_new' : 'clouds_new';
         url = `https://tile.openweathermap.org/map/${layer}/${z}/${x}/${y}.png?appid=86667635417f91e6f0f60c2215abc2c9`;
     }
 
     try {
-        const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
-        res.set('Content-Type', 'image/png');
+        const response = await axios.get(url, { 
+            responseType: 'arraybuffer', 
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+            }
+        });
+
+        // KLUCZOWE: Cache na poziomie przeglądarki (1 godzina)
+        // Dzięki temu przy zapętleniu animacji przeglądarka nie pyta ponownie serwera!
+        res.set({
+            'Content-Type': 'image/png',
+            'Cache-Control': 'public, max-age=3600',
+            'Access-Control-Allow-Origin': '*'
+        });
+
         res.send(response.data);
     } catch (e) {
+        // Loguj błąd tylko jeśli to nie jest 404 (czasami kafelki po prostu nie istnieją dla danego zoomu)
+        if (e.response?.status !== 404) {
+            console.error(`Tile Error [${type}]:`, e.message);
+        }
+
+        // Zwracamy przeźroczysty piksel 1x1, żeby Leaflet "nie płakał" o błędy 404
         const empty = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-        res.set('Content-Type', 'image/png').send(empty);
+        res.set({
+            'Content-Type': 'image/png',
+            'Cache-Control': 'public, max-age=86400' // Błędne kafelki cache'ujemy na dobę, żeby nie ponawiać zapytań
+        });
+        res.send(empty);
     }
 });
 
