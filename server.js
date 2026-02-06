@@ -6,10 +6,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- 1. SOLAR API (Naprawione 404 i błędy danych) ---
+// --- 1. SOLAR API ---
 app.get('/api/solar', async (req, res) => {
     try {
-        // Używamy timeoutów, żeby Render nie wisiał
         const config = { timeout: 8000 };
         const [report, kp, wind, xray] = await Promise.all([
             axios.get('https://services.swpc.noaa.gov/text/daily-solar-indices.txt', config).catch(() => ({data: ""})),
@@ -42,7 +41,7 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
-// --- 2. RADAR INFO (Naprawione 500) ---
+// --- 2. RADAR INFO ---
 app.get('/api/map/info', async (req, res) => {
     try {
         const response = await axios.get('https://api.rainviewer.com/public/weather-maps.json', {
@@ -63,7 +62,6 @@ app.get('/api/map/info', async (req, res) => {
         });
     } catch (err) {
         console.error("Radar Error:", err.message);
-        // FALLBACK: Jeśli API leży, wyślij wygenerowany timestamp sprzed 10 min
         const now = Math.floor(Date.now() / 1000);
         const fallbackTs = now - (now % 600);
         res.json({ 
@@ -86,12 +84,11 @@ app.get('/api/meteo', async (req, res) => {
     }
 });
 
-// --- 4. MAP TILES PROXY (Zoptymalizowany pod kątem limitów i stabilności) ---
+// --- 4. MAP TILES PROXY (NAPRAWIONE) ---
 app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     const { type, ts, z, x, y } = req.params;
     let url = "";
 
-    // Wybór źródła
     if (type === 'radar') {
         url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
     } else if (type === 'clouds') {
@@ -111,8 +108,6 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
             }
         });
 
-        // KLUCZOWE: Cache na poziomie przeglądarki (1 godzina)
-        // Dzięki temu przy zapętleniu animacji przeglądarka nie pyta ponownie serwera!
         res.set({
             'Content-Type': 'image/png',
             'Cache-Control': 'public, max-age=3600',
@@ -121,25 +116,17 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
 
         res.send(response.data);
     } catch (e) {
-    // Zamiast res.status(404), zawsze wysyłaj to:
-    const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-    res.set({
-        'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=86400' // Cache na dobę dla "pustki"
-    }).send(emptyPixel);
-}
-
-        // Zwracamy przeźroczysty piksel 1x1, żeby Leaflet "nie płakał" o błędy 404
-        const empty = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        // Zwracamy przeźroczysty piksel zamiast błędu
+        const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
         res.set({
             'Content-Type': 'image/png',
-            'Cache-Control': 'public, max-age=86400' // Błędne kafelki cache'ujemy na dobę, żeby nie ponawiać zapytań
+            'Cache-Control': 'public, max-age=86400' 
         });
-        res.send(empty);
+        res.send(emptyPixel);
     }
 });
 
-// --- 5. PKP FALLBACK (Naprawione 404) ---
+// --- 5. PKP FALLBACK ---
 app.get('/api/pkp/:id', (req, res) => {
     res.json({ status: "offline", message: "Service restricted" });
 });
