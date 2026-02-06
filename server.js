@@ -131,34 +131,32 @@ app.get('/api/pkp/:id', (req, res) => {
     res.json({ status: "offline", message: "Service restricted" });
 });
 
-// --- 6. RADAR STATIC OVERLAY (Dla systemu Anti-Flicker A/B) ---
+// --- 6. RADAR STATIC OVERLAY (Naprawiony pod kafelki RainViewer) ---
 app.get('/api/map/radar_static/:ts.png', async (req, res) => {
     const { ts } = req.params;
     
-    /**
-     * RainViewer pozwala pobrać pojedynczy obraz (composite) zamiast kafelków.
-     * Używamy rozmiaru 512px lub większego i przybliżenia (zoom) 2, 
-     * co dobrze pokrywa Europę w widoku ogólnym.
-     */
-    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/512/2/0_0.png?color=6`;
+    // RainViewer najlepiej radzi sobie z kafelkami. 
+    // Zamiast jednego wielkiego obrazu, serwer pobierze konkretny kafelek 
+    // pokrywający centralną Polskę (Zoom 6, X 35, Y 21 - okolice Wieliszewa)
+    // To zagwarantuje status 200 OK dla historii i prognoz.
+    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/6/35/21/2/1_1.png`;
 
     try {
         const response = await axios.get(url, {
             responseType: 'arraybuffer',
-            timeout: 10000,
+            timeout: 7000,
             headers: { 'User-Agent': 'Mozilla/5.0' }
         });
 
         res.set({
             'Content-Type': 'image/png',
-            'Cache-Control': 'public, max-age=300', // Krótki cache dla radaru
+            'Cache-Control': 'public, max-age=300',
             'Access-Control-Allow-Origin': '*'
         });
 
         res.send(response.data);
     } catch (e) {
-        console.error(`Static Radar Error (${ts}):`, e.message);
-        // Zwracamy przeźroczysty piksel w razie błędu
+        console.error(`Radar Tile Error (${ts}):`, e.message);
         const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
         res.set('Content-Type', 'image/png');
         res.send(emptyPixel);
