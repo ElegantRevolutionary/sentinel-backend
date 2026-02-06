@@ -111,17 +111,21 @@ app.get('/api/solar', async (req, res) => {
 
 app.get('/api/map/info', async (req, res) => {
     try {
-        const response = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
         const data = await response.json();
         
+        // Łączymy historię (past) i prognozę (forecast)
+        const past = data.radar.past.map(f => f.time);
+        const forecast = data.radar.forecast.map(f => f.time);
+        
+        // Zwracamy połączone klatki
         res.json({ 
-    // Bierzemy co drugą klatkę (filter), żeby odciążyć przeglądarkę
-    radarFrames: data.radar.past.filter((_, i) => i % 2 === 0).map(f => f.time),
-    radarTs: data.radar.past[data.radar.past.length - 1].time, 
-    status: "ok" 
-});
-    } catch (e) {
-        res.status(500).json({ error: "API Error" });
+            radarFrames: [...past, ...forecast],
+            forecastStartIndex: past.length, // Ważne: gdzie zaczyna się przyszłość
+            status: "ok" 
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
