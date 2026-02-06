@@ -134,32 +134,20 @@ app.get('/api/pkp/:id', (req, res) => {
 // --- 6. RADAR STATIC OVERLAY (Naprawiony pod kafelki RainViewer) ---
 app.get('/api/map/radar_static/:ts.png', async (req, res) => {
     const { ts } = req.params;
-    
-    // RainViewer najlepiej radzi sobie z kafelkami. 
-    // Zamiast jednego wielkiego obrazu, serwer pobierze konkretny kafelek 
-    // pokrywający centralną Polskę (Zoom 6, X 35, Y 21 - okolice Wieliszewa)
-    // To zagwarantuje status 200 OK dla historii i prognoz.
-    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/6/35/21/2/1_1.png`;
+    // Pobieramy obraz 1024px - pokrywa Polskę i kraje ościenne w doskonałej jakości
+    // Zoom 4, koordynaty 8/5 są optymalne dla widoku na Polskę
+    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/1024/4/8/5/2/1_1.png`;
 
     try {
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            timeout: 7000,
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-
+        const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
         res.set({
             'Content-Type': 'image/png',
-            'Cache-Control': 'public, max-age=300',
-            'Access-Control-Allow-Origin': '*'
+            'Cache-Control': 'public, max-age=300'
         });
-
         res.send(response.data);
     } catch (e) {
-        console.error(`Radar Tile Error (${ts}):`, e.message);
         const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-        res.set('Content-Type', 'image/png');
-        res.send(emptyPixel);
+        res.set('Content-Type', 'image/png').send(emptyPixel);
     }
 });
 
