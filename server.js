@@ -134,18 +134,15 @@ app.get('/api/pkp/:id', (req, res) => {
 // --- 6. RADAR STATIC OVERLAY (Naprawiony pod kafelki RainViewer) ---
 app.get('/api/map/radar_static/:ts.png', async (req, res) => {
     const { ts } = req.params;
-    // Pobieramy obraz 1024px - pokrywa Polskę i kraje ościenne w doskonałej jakości
-    // Zoom 4, koordynaty 8/5 są optymalne dla widoku na Polskę
-    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/1024/4/8/5/2/1_1.png`;
+    // Zmieniamy na Zoom 3, X:4, Y:2 - to pokrywa prawie całą Europę
+    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/1024/3/4/2/2/1_1.png`;
 
     try {
         const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
-        res.set({
-            'Content-Type': 'image/png',
-            'Cache-Control': 'public, max-age=300'
-        });
+        res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' });
         res.send(response.data);
     } catch (e) {
+        // Zamiast błędu wysyłamy przezroczysty 1x1 PNG, żeby nie było widać ikonki błędu
         const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
         res.set('Content-Type', 'image/png').send(emptyPixel);
     }
