@@ -131,5 +131,39 @@ app.get('/api/pkp/:id', (req, res) => {
     res.json({ status: "offline", message: "Service restricted" });
 });
 
+// --- 6. RADAR STATIC OVERLAY (Dla systemu Anti-Flicker A/B) ---
+app.get('/api/map/radar_static/:ts.png', async (req, res) => {
+    const { ts } = req.params;
+    
+    /**
+     * RainViewer pozwala pobrać pojedynczy obraz (composite) zamiast kafelków.
+     * Używamy rozmiaru 512px lub większego i przybliżenia (zoom) 2, 
+     * co dobrze pokrywa Europę w widoku ogólnym.
+     */
+    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/512/2/0_0.png?color=6`;
+
+    try {
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 10000,
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        res.set({
+            'Content-Type': 'image/png',
+            'Cache-Control': 'public, max-age=300', // Krótki cache dla radaru
+            'Access-Control-Allow-Origin': '*'
+        });
+
+        res.send(response.data);
+    } catch (e) {
+        console.error(`Static Radar Error (${ts}):`, e.message);
+        // Zwracamy przeźroczysty piksel w razie błędu
+        const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        res.set('Content-Type', 'image/png');
+        res.send(emptyPixel);
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
