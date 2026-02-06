@@ -121,10 +121,13 @@ app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
 
         res.send(response.data);
     } catch (e) {
-        // Loguj błąd tylko jeśli to nie jest 404 (czasami kafelki po prostu nie istnieją dla danego zoomu)
-        if (e.response?.status !== 404) {
-            console.error(`Tile Error [${type}]:`, e.message);
-        }
+    // Zamiast res.status(404), zawsze wysyłaj to:
+    const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+    res.set({
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=86400' // Cache na dobę dla "pustki"
+    }).send(emptyPixel);
+}
 
         // Zwracamy przeźroczysty piksel 1x1, żeby Leaflet "nie płakał" o błędy 404
         const empty = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
