@@ -36,18 +36,17 @@ app.get('/api/map/info', async (req, res) => {
 // Frontend wysyła: /api/map/radar_static/{ts}.png
 app.get('/api/map/radar_static/:ts.png', async (req, res) => {
     const { ts } = req.params;
-    // Ustawienia: rozmiar 512, zoom 3 (cała Europa), styl 1 (original), smooth 1
     const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/512/3/1_1.png`;
     
     try {
-        const response = await axios({
-            url,
-            responseType: 'stream'
-        });
+        const response = await axios({ url, responseType: 'stream' });
         res.setHeader('Content-Type', 'image/png');
         response.data.pipe(res);
     } catch (e) {
-        res.status(404).send('Tile not found');
+        // Zamiast 404, wyślij przezroczysty 1x1 PNG, aby frontend mógł "przeskoczyć" klatkę
+        const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        res.setHeader('Content-Type', 'image/png');
+        res.send(transparentPixel);
     }
 });
 
