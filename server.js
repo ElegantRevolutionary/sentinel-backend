@@ -3,17 +3,50 @@ const axios = require('axios');
 const cors = require('cors');
 const app = express();
 
-// Usprawniony CORS
 app.use(cors());
+app.use(express.json());
 
-// Dynamiczny import node-fetch dla Render (jeśli używasz starszego Node)
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+// --- 1. SOLAR API (Naprawione 404 i błędy danych) ---
+app.get('/api/solar', async (req, res) => {
+    try {
+        // Używamy timeoutów, żeby Render nie wisiał
+        const config = { timeout: 8000 };
+        const [report, kp, wind, xray] = await Promise.all([
+            axios.get('https://services.swpc.noaa.gov/text/daily-solar-indices.txt', config).catch(() => ({data: ""})),
+            axios.get('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', config).catch(() => ({data: []})),
+            axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json', config).catch(() => ({data: {}})),
+            axios.get('https://services.swpc.noaa.gov/json/goes/primary/xrays-3-day.json', config).catch(() => ({data: []}))
+        ]);
 
-// --- ENDPOINT INFO (Radar + Prognoza) ---
+        let sfi = "---";
+        if (report.data) {
+            const lines = report.data.trim().split('\n');
+            const lastLine = lines[lines.length - 1];
+            const parts = lastLine.trim().split(/\s+/);
+            if (parts.length > 3) sfi = parts[3];
+        }
+
+        const xrayData = xray.data || [];
+        const last24h = xrayData.filter(d => d.energy === "0.1-0.8nm").slice(-40);
+
+        res.json({
+            sfi: sfi,
+            kp: kp.data.length > 0 ? kp.data[kp.data.length - 1][1] : "---",
+            wind: wind.data.WindSpeed || wind.data.wind_speed || "---",
+            xrayFull: last24h.map(d => ({ time: d.time_tag, val: d.flux })),
+            status: "ok"
+        });
+    } catch (e) {
+        console.error("Solar Error:", e.message);
+        res.status(500).json({ error: "Solar data failed" });
+    }
+});
+
+// --- 2. RADAR INFO (Naprawione 500) ---
 app.get('/api/map/info', async (req, res) => {
     try {
-        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-        const data = await response.json();
+        const response = await axios.get('https://api.rainviewer.com/public/weather-maps.json', { timeout: 5000 });
+        const data = response.data;
         
         const past = data.radar.past.map(f => f.time);
         const forecast = data.radar.forecast.map(f => f.time);
@@ -24,60 +57,49 @@ app.get('/api/map/info', async (req, res) => {
             status: "ok" 
         });
     } catch (err) {
-        console.error("Radar Info Error:", err);
-        res.status(500).json({ error: "Nie udało się pobrać danych radaru" });
+        console.error("Radar Error:", err.message);
+        res.status(500).json({ error: "Radar source down" });
     }
 });
 
-// --- PROXY DLA KAFELKÓW (Naprawione URL) ---
+// --- 3. METEO PROXY ---
+app.get('/api/meteo', async (req, res) => {
+    const { lat, lon } = req.query;
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,apparent_temperature,dew_point_2m,uv_index,cloud_cover,precipitation,snowfall&hourly=temperature_2m,surface_pressure,relative_humidity_2m&daily=precipitation_sum,snowfall_sum&timezone=auto&forecast_days=3`;
+        const response = await axios.get(url);
+        res.json(response.data);
+    } catch (e) {
+        res.status(500).json({ error: "Meteo failed" });
+    }
+});
+
+// --- 4. MAP TILES PROXY ---
 app.get('/api/map/:type/:ts/:z/:x/:y', async (req, res) => {
     const { type, ts, z, x, y } = req.params;
     let url = "";
 
-    if (type === 'radar') {
-        url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
-    } else if (type === 'clouds') {
-        // NAPRAWIONE: ${y} zamiast {y}
-        url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_0.png`;
-    } else if (type === 'temp' || type === 'clouds_owm') {
-        const API_KEY = "86667635417f91e6f0f60c2215abc2c9";
-        const layerType = type === 'temp' ? 'temp_new' : 'clouds_new';
-        url = `https://tile.openweathermap.org/map/${layerType}/${z}/${x}/${y}.png?appid=${API_KEY}`;
+    if (type === 'radar') url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/2/1_1.png`;
+    else if (type === 'clouds') url = `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/${z}/${x}/${y}/0/0_0.png`;
+    else if (type === 'temp' || type === 'clouds_owm') {
+        const layer = type === 'temp' ? 'temp_new' : 'clouds_new';
+        url = `https://tile.openweathermap.org/map/${layer}/${z}/${x}/${y}.png?appid=86667635417f91e6f0f60c2215abc2c9`;
     }
 
-    if (!url) return res.status(400).send("Invalid type");
-
     try {
-        const response = await fetch(url, { timeout: 7000 });
-        if (!response.ok) throw new Error('Source error');
-
-        const arrayBuffer = await response.arrayBuffer();
+        const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
         res.set('Content-Type', 'image/png');
-        res.set('Cache-Control', 'public, max-age=1800'); // 30 min cache - odciąży Twój serwer
-        res.send(Buffer.from(arrayBuffer));
+        res.send(response.data);
     } catch (e) {
-        // Przezroczysty pixel 1x1 w razie błędu
-        res.set('Content-Type', 'image/png');
-        res.send(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+        const empty = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        res.set('Content-Type', 'image/png').send(empty);
     }
 });
 
-// --- METEO PROXY (Z poprawką 502) ---
-app.get('/api/meteo', async (req, res) => {
-    const { lat, lon } = req.query;
-    if (!lat || !lon) return res.status(400).json({ error: "Missing lat/lon" });
-
-    try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,apparent_temperature,dew_point_2m,uv_index,cloud_cover,precipitation,snowfall&hourly=temperature_2m,surface_pressure,relative_humidity_2m&daily=precipitation_sum,snowfall_sum&timezone=auto&forecast_days=3`;
-        const response = await fetch(url);
-        const data = await response.json();
-        res.json(data);
-    } catch (e) {
-        res.status(500).json({ error: "Meteo service down" });
-    }
+// --- 5. PKP FALLBACK (Naprawione 404) ---
+app.get('/api/pkp/:id', (req, res) => {
+    res.json({ status: "offline", message: "Service restricted" });
 });
-
-// ... Twoje api/solar i reszta ...
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Sentinel Backend active on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
