@@ -90,6 +90,16 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
+app.get('/moon', async (req, res) => {
+    try {
+        const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='301'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='coord@399'&COORD_TYPE='GEODETIC'&SITE_COORD='20.93,52.40,0.1'&STEP_SIZE='1%20d'&QUANTITIES='1'&START_TIME='now'&STOP_TIME='tomorrow'`;
+        const response = await axios.get(nasaUrl);
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).send(error.message);
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`SENTINEL CORE ONLINE ON PORT ${PORT}`);
 });
