@@ -23,10 +23,10 @@ app.get('/api/meteo', async (req, res) => {
     }
 });
 
-// --- ENDPOINT: SOLAR (Tu była dziura) ---
+// --- ENDPOINT: SOLAR (POPRAWIONY) ---
 app.get('/api/solar', async (req, res) => {
     try {
-        // Pobieramy dane o Kp, wietrze słonecznym i SFI jednocześnie
+        // Pobieramy dane o Kp, wietrze i SFI z oficjalnych źródeł NOAA
         const [kpRes, windRes, sfiRes] = await Promise.all([
             axios.get('https://services.swpc.noaa.gov/products/noaa-estimated-planetary-k-index-1-minute.json'),
             axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json'),
@@ -34,15 +34,15 @@ app.get('/api/solar', async (req, res) => {
         ]);
 
         // 1. Obróbka Kp Index (ostatnie 24 odczyty)
-        // Omijamy nagłówek (slice(1)) i bierzemy ostatnie 24 rekordy
-        const rawKp = kpRes.data.slice(1);
+        // NOAA przesyła dane jako tablicę tablic [timestamp, wartość, ...]
+        const rawKp = kpRes.data.slice(1); // Omijamy nagłówek
         const historyKp = rawKp.slice(-24).map(item => parseFloat(item[1]));
         const currentKp = historyKp[historyKp.length - 1] || 0;
 
-        // 2. Obróbka SFI (Solar Flux Index)
+        // 2. Solar Flux Index (SFI) - kluczowy dla inżynierii RF
         const currentSfi = sfiRes.data.flux || "---";
 
-        // 3. Wiatr słoneczny
+        // 3. Wiatr słoneczny (Solar Wind)
         const solarWind = windRes.data.wind_speed || "---";
 
         // 4. Flare Probability (Prawdopodobieństwo rozbłysków - demo)
@@ -58,7 +58,7 @@ app.get('/api/solar', async (req, res) => {
 
     } catch (e) {
         console.error("SOLAR FETCH ERROR:", e.message);
-        // Zwracamy bezpieczne dane, żeby frontend się nie zawiesił
+        // Zwracamy "bezpieczne" dane, żeby frontend się nie zawiesił
         res.json({
             kp: "N/A",
             historyKp: new Array(24).fill(0),
