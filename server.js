@@ -25,46 +25,54 @@ app.get('/api/meteo', async (req, res) => {
 
 // --- ENDPOINT: SOLAR (POPRAWIONY) ---
 app.get('/api/solar', async (req, res) => {
-  try {
-    // Używamy stabilnych linków tekstowych i JSON
-    const [kpRes, sfiRes, windRes] = await Promise.all([
-      axios.get('https://services.swpc.noaa.gov/products/noaa-estimated-planetary-k-index-1-minute.json').catch(() => null),
-      axios.get('https://services.swpc.noaa.gov/products/summary/10cm-radio-flux.json').catch(() => null),
-      axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json').catch(() => null)
-    ]);
+    const axiosConfig = {
+        headers: { 'User-Agent': 'Mozilla/5.0 Sentinel-Dashboard/1.0' }
+    };
 
-    // PARSOWANIE KP INDEX
-    let historyKp = new Array(24).fill(0);
-    let currentKp = "---";
-    if (kpRes && kpRes.data && kpRes.data.length > 1) {
-      const rawData = kpRes.data.slice(1);
-      historyKp = rawData.slice(-24).map(item => parseFloat(item[1]) || 0);
-      currentKp = historyKp[historyKp.length - 1].toFixed(1);
+    try {
+        // Pobieramy Twoje dwa kluczowe źródła LIVE
+        const [kpRes, sfiRes, windRes] = await Promise.all([
+            axios.get('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', axiosConfig),
+            axios.get('https://services.swpc.noaa.gov/products/10cm-flux-30-day.json', axiosConfig),
+            axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json', axiosConfig).catch(() => null)
+        ]);
+
+        // --- OBSŁUGA KP INDEX (Twoje źródło) ---
+        let historyKp = new Array(24).fill(0);
+        let currentKp = "---";
+        if (kpRes.data && kpRes.data.length > 1) {
+            const dataRows = kpRes.data.slice(1);
+            // Wyciągamy ostatnie 24 odczyty, Kp jest w kolumnie 1 (index 1)
+            historyKp = dataRows.slice(-24).map(row => parseFloat(row[1]) || 0);
+            currentKp = historyKp[historyKp.length - 1].toFixed(1);
+        }
+
+        // --- OBSŁUGA SFI (Twoje nowe źródło 30-dniowe) ---
+        // Format: [["time_tag", "flux"], ["2026-02-09 00:00", "158.4"]]
+        let currentSfi = "---";
+        if (sfiRes.data && sfiRes.data.length > 1) {
+            const lastRow = sfiRes.data[sfiRes.data.length - 1];
+            currentSfi = parseFloat(lastRow[1]).toFixed(1);
+        }
+
+        // --- OBSŁUGA WIATRU ---
+        let wind = "---";
+        if (windRes && windRes.data) {
+            wind = windRes.data.WindSpeed || windRes.data.wind_speed || "---";
+        }
+
+        res.json({
+            kp: currentKp,
+            historyKp: historyKp,
+            sfi: currentSfi,
+            flare: "Live", 
+            wind: wind
+        });
+
+    } catch (e) {
+        console.error("SENTINEL FETCH ERROR:", e.message);
+        res.status(500).json({ error: "Błąd połączenia z satelitami NOAA" });
     }
-
-    // PARSOWANIE SFI (Zwróć uwagę na duże 'F' w Flux - NOAA to zmieniło!)
-    let sfi = "---";
-    if (sfiRes && sfiRes.data) {
-      sfi = sfiRes.data.Flux || sfiRes.data.flux || "---";
-    }
-
-    // PARSOWANIE WIATRU
-    let wind = "---";
-    if (windRes && windRes.data) {
-      wind = windRes.data.WindSpeed || windRes.data.wind_speed || "---";
-    }
-
-    res.json({
-      kp: currentKp,
-      historyKp: historyKp,
-      sfi: sfi,
-      flare: 10, 
-      wind: wind
-    });
-
-  } catch (e) {
-    res.json({ kp: "ERR", historyKp: new Array(24).fill(0), sfi: "---", flare: 0, wind: "---" });
-  }
 });
 
 app.listen(PORT, () => {
