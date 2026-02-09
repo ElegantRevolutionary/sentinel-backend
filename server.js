@@ -30,25 +30,23 @@ app.get('/api/solar', async (req, res) => {
     };
 
     try {
-        // Pobieramy Twoje dwa kluczowe źródła LIVE
-        const [kpRes, sfiRes, windRes] = await Promise.all([
+        const [kpRes, sfiRes, windRes, flareRes] = await Promise.all([
             axios.get('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', axiosConfig),
             axios.get('https://services.swpc.noaa.gov/products/10cm-flux-30-day.json', axiosConfig),
-            axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json', axiosConfig).catch(() => null)
+            axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json', axiosConfig).catch(() => null),
+            axios.get('https://services.swpc.noaa.gov/json/solar_probabilities.json', axiosConfig).catch(() => null)
         ]);
 
-        // --- OBSŁUGA KP INDEX (Twoje źródło) ---
+        // --- OBSŁUGA KP (Twoje źródło) ---
         let historyKp = new Array(24).fill(0);
         let currentKp = "---";
         if (kpRes.data && kpRes.data.length > 1) {
             const dataRows = kpRes.data.slice(1);
-            // Wyciągamy ostatnie 24 odczyty, Kp jest w kolumnie 1 (index 1)
             historyKp = dataRows.slice(-24).map(row => parseFloat(row[1]) || 0);
             currentKp = historyKp[historyKp.length - 1].toFixed(1);
         }
 
-        // --- OBSŁUGA SFI (Twoje nowe źródło 30-dniowe) ---
-        // Format: [["time_tag", "flux"], ["2026-02-09 00:00", "158.4"]]
+        // --- OBSŁUGA SFI (Twoje źródło) ---
         let currentSfi = "---";
         if (sfiRes.data && sfiRes.data.length > 1) {
             const lastRow = sfiRes.data[sfiRes.data.length - 1];
@@ -61,11 +59,20 @@ app.get('/api/solar', async (req, res) => {
             wind = windRes.data.WindSpeed || windRes.data.wind_speed || "---";
         }
 
+        // --- OBSŁUGA FLARE PROB (LIVE %) ---
+        // Wyciągamy prawdopodobieństwo rozbłysku klasy M (najbardziej istotne dla RF)
+        let flareProb = "0";
+        if (flareRes && flareRes.data && flareRes.data.length > 0) {
+            // NOAA podaje prognozy na dziś, jutro, pojutrze. Bierzemy 'dziś' (index 0)
+            // Interesuje nas klasa M (M-class flare probability)
+            flareProb = flareRes.data[0].m_class_1_day || "0";
+        }
+
         res.json({
             kp: currentKp,
             historyKp: historyKp,
             sfi: currentSfi,
-            flare: "Live", 
+            flare: flareProb, // To zwróci samą liczbę, np. 25
             wind: wind
         });
 
