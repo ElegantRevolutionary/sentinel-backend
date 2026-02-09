@@ -38,30 +38,29 @@ app.get('/api/map/info', async (req, res) => {
 
 // --- POPRAWIONY ENDPOINT: RADAR TILES PROXY ---
 // Frontend teraz wyśle: /api/map/radar_static/{ts}/{z}/{x}/{y}.png
+// index.js
 app.get('/api/map/radar_static/:ts/:z/:x/:y.png', async (req, res) => {
     const { ts, z, x, y } = req.params;
     const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/1/1_1.png`;
     
+    // Zawsze wysyłaj te nagłówki, żeby ubić błędy CORS w konsoli
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+
     try {
         const response = await axios({ 
             url, 
-            method: 'GET',
-            responseType: 'stream',
-            timeout: 5000,
-            headers: { 'User-Agent': 'Sentinel-Dashboard-Project' } // Niektóre API blokują puste User-Agenty
+            method: 'GET', 
+            responseType: 'arraybuffer',
+            timeout: 3000 // Krótki timeout, żeby nie blokować wątku
         });
-
-        // Przekazujemy nagłówki CORS manualnie, jeśli middleware zawiedzie
-        res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Content-Type', 'image/png');
-        response.data.pipe(res);
-
+        res.send(response.data);
     } catch (e) {
-        // Jeśli RainViewer sypnie błędem, nie pozwól, by Twój serwer odpowiedział 502
-        const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        // ZWROT AWARYJNY: Przezroczysty pixel 1x1, jeśli RainViewer nas zablokuje
+        const emptyPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
         res.setHeader('Content-Type', 'image/png');
-        res.send(transparentPixel);
+        res.status(200).send(emptyPixel); // Wysyłamy 200, żeby mapa nie sypała błędami
     }
 });
 
