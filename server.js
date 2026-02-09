@@ -90,57 +90,21 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
+// server.js
 app.get('/api/moon', async (req, res) => {
     try {
-        // Generowanie dat: START (teraz), STOP (za 24h)
         const now = new Date();
         const tomorrow = new Date(now);
         tomorrow.setDate(now.getDate() + 1);
-
         const formatDate = (d) => d.toISOString().split('T')[0];
-        
-        const startTime = `'${formatDate(now)}'`;
-        const stopTime = `'${formatDate(tomorrow)}'`;
 
-        // Budujemy URL z dynamicznymi datami
-        const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='301'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='coord@399'&SITE_COORD='20.93,52.4,0.1'&STEP_SIZE='1h'&QUANTITIES='4,18,20'&START_TIME=${startTime}&STOP_TIME=${stopTime}`;
+        const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='301'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='coord@399'&SITE_COORD='20.93,52.4,0.1'&STEP_SIZE='1h'&QUANTITIES='4,18,20'&START_TIME='${formatDate(now)}'&STOP_TIME='${formatDate(tomorrow)}'`;
         
         const response = await axios.get(nasaUrl);
-        const rawData = response.data.result;
-
-        // Sekcja parsowania (to co robiliśmy wcześniej)
-        const table = rawData.split('$$SOE')[1].split('$$EOE')[0].trim();
-        const lines = table.split('\n');
-
-        // Pobieramy dane dla obecnej godziny (indeks 0 to start_time)
-        const current = lines[0].trim().split(/\s+/);
-
-        // Znajdź wschód i zachód w tabeli 24h
-        let moonRise = "--:--";
-        let moonSet = "--:--";
-        for (let i = 0; i < lines.length - 1; i++) {
-            const row = lines[i].trim().split(/\s+/);
-            const nextRow = lines[i+1].trim().split(/\s+/);
-            const elNow = parseFloat(row[5]);
-            const elNext = parseFloat(nextRow[5]);
-
-            if (elNow < 0 && elNext >= 0) moonRise = nextRow[1];
-            if (elNow > 0 && elNext <= 0) moonSet = row[1];
-        }
-
-        res.json({
-            illum: current[8],
-            el: current[5],
-            az: current[4],
-            dist: (parseFloat(current[9]) * 149597870.7).toFixed(0), // Przeliczenie AU na KM
-            rise: moonRise,
-            set: moonSet,
-            eme: parseFloat(current[5]) > 0 ? "OPTIMAL" : "NO SIGNAL"
-        });
-
+        // KLUCZOWE: Wysyłamy cały obiekt z NASA, żeby frontend widział .result
+        res.json(response.data); 
     } catch (error) {
-        console.error("NASA Sync Error:", error);
-        res.status(500).json({ error: "LUNAR TELEMETRY OFFLINE" });
+        res.status(500).json({ error: "NASA OFFLINE" });
     }
 });
 
