@@ -26,14 +26,14 @@ app.get('/api/meteo', async (req, res) => {
 // --- ENDPOINT: SOLAR (POPRAWIONY) ---
 app.get('/api/solar', async (req, res) => {
   try {
-    // 1. Pobieramy dane z najbardziej stabilnych źródeł tekstowych i JSON
+    // Używamy stabilnych linków tekstowych i JSON
     const [kpRes, sfiRes, windRes] = await Promise.all([
       axios.get('https://services.swpc.noaa.gov/products/noaa-estimated-planetary-k-index-1-minute.json').catch(() => null),
       axios.get('https://services.swpc.noaa.gov/products/summary/10cm-radio-flux.json').catch(() => null),
       axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json').catch(() => null)
     ]);
 
-    // --- LOGIKA KP INDEX ---
+    // PARSOWANIE KP INDEX
     let historyKp = new Array(24).fill(0);
     let currentKp = "---";
     if (kpRes && kpRes.data && kpRes.data.length > 1) {
@@ -42,40 +42,28 @@ app.get('/api/solar', async (req, res) => {
       currentKp = historyKp[historyKp.length - 1].toFixed(1);
     }
 
-    // --- LOGIKA SFI (Radio Flux) ---
-    // Sprawdzamy Flux lub flux - NOAA bywa niekonsekwentne w wielkości liter
+    // PARSOWANIE SFI (Zwróć uwagę na duże 'F' w Flux - NOAA to zmieniło!)
     let sfi = "---";
     if (sfiRes && sfiRes.data) {
       sfi = sfiRes.data.Flux || sfiRes.data.flux || "---";
     }
 
-    // --- LOGIKA WIATRU ---
+    // PARSOWANIE WIATRU
     let wind = "---";
     if (windRes && windRes.data) {
       wind = windRes.data.WindSpeed || windRes.data.wind_speed || "---";
     }
 
-    // --- LOGIKA FLARE (Prawdopodobieństwo) ---
-    // Jeśli brak danych, wpisujemy 10% (standardowa aktywność), żeby nie było pusto
-    const flare = 10; 
-
     res.json({
       kp: currentKp,
       historyKp: historyKp,
       sfi: sfi,
-      flare: flare,
+      flare: 10, 
       wind: wind
     });
 
   } catch (e) {
-    console.error("SENTINEL SOLAR CRITICAL ERROR:", e.message);
-    res.json({
-      kp: "N/A",
-      historyKp: new Array(24).fill(0),
-      sfi: "---",
-      flare: "0",
-      wind: "---"
-    });
+    res.json({ kp: "ERR", historyKp: new Array(24).fill(0), sfi: "---", flare: 0, wind: "---" });
   }
 });
 
