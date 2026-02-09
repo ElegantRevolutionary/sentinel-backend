@@ -92,18 +92,27 @@ app.get('/api/solar', async (req, res) => {
 
 app.get('/api/moon', async (req, res) => {
     try {
-       const now = new Date();
-const tomorrow = new Date(now);
-tomorrow.setDate(tomorrow.getDate() + 1);
+        // Generujemy daty dynamicznie w formacie ISO (YYYY-MM-DD)
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
 
-const formatDate = (d) => d.toISOString().split('T')[0]; // Zwróci YYYY-MM-DD
+        const start = now.toISOString().split('T')[0];
+        const stop = tomorrow.toISOString().split('T')[0];
 
-const start = formatDate(now);
-const stop = formatDate(tomorrow);
+        // SITE_COORD: 20.93 (Lon), 52.40 (Lat), 0.1 (Alt w km)
+        // QUANTITIES='20' to klucz do uzyskania Rise/Set
+        const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='301'&OBJ_DATA='YES'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='coord@399'&COORD_TYPE='GEODETIC'&SITE_COORD='20.93,52.40,0.1'&STEP_SIZE='1%20d'&QUANTITIES='20'&START_TIME='${start}'&STOP_TIME='${stop}'`;
 
-const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='301'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='coord@399'&COORD_TYPE='GEODETIC'&SITE_COORD='20.93,52.40,0.1'&STEP_SIZE='1%20d'&QUANTITIES='1'&START_TIME='${start}'&STOP_TIME='${stop}'`;
+        const response = await axios.get(nasaUrl);
+        
+        // Logujemy w konsoli Rendera, żebyś widział co przyszło
+        console.log("SENTINEL NASA SYNC: Data received for " + start);
+        
+        res.json(response.data);
     } catch (error) {
-        res.status(500).send(error.message);
+        console.error("NASA API Error:", error.message);
+        res.status(500).json({ error: "Failed to fetch from NASA" });
     }
 });
 
