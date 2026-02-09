@@ -32,18 +32,33 @@ app.get('/api/map/info', async (req, res) => {
     });
 });
 
-// --- ENDPOINT: RADAR TILES (Proxy do RainViewer) ---
-// Frontend wysyła: /api/map/radar_static/{ts}.png
-app.get('/api/map/radar_static/:ts.png', async (req, res) => {
-    const { ts } = req.params;
-    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/512/3/1_1.png`;
+// --- POPRAWIONY ENDPOINT: RADAR TILES PROXY ---
+// Frontend teraz wyśle: /api/map/radar_static/{ts}/{z}/{x}/{y}.png
+app.get('/api/map/radar_static/:ts/:z/:x/:y.png', async (req, res) => {
+    const { ts, z, x, y } = req.params;
+    
+    // Budujemy dynamiczny URL do RainViewer z zachowaniem parametrów z frontendu
+    // 256 to rozmiar kafelka, 1 to schemat kolorów, 1_1 to opcje wygładzania
+    const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/1/1_1.png`;
     
     try {
-        const response = await axios({ url, responseType: 'stream' });
+        const response = await axios({ 
+            url, 
+            method: 'GET',
+            responseType: 'stream',
+            timeout: 3000 // Nie czekamy w nieskończoność
+        });
+
         res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=3600'); 
         response.data.pipe(res);
+
     } catch (e) {
-        // Zamiast 404, wyślij przezroczysty 1x1 PNG, aby frontend mógł "przeskoczyć" klatkę
+        // Logujemy błąd tylko dla nas, żeby widzieć co nie bangla
+        // console.log(`Błąd kafelka: ${ts} | URL: ${url}`);
+
+        // Zamiast 404, wysyłamy przezroczysty 1x1 PNG. 
+        // Dzięki temu mapa "nie mruga" i nie sypie błędami w konsoli
         const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
         res.setHeader('Content-Type', 'image/png');
         res.send(transparentPixel);
