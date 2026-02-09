@@ -98,7 +98,7 @@ app.get('/api/moon', async (req, res) => {
         tomorrow.setDate(now.getDate() + 1);
         const formatDate = (d) => d.toISOString().split('T')[0];
 
-        const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='301'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='coord@399'&SITE_COORD='20.93,52.4,0.1'&STEP_SIZE='1h'&QUANTITIES='4,18,20'&START_TIME='${formatDate(now)}'&STOP_TIME='${formatDate(tomorrow)}'`;
+        const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='301'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='coord@399'&SITE_COORD='20.93,52.4,0.1'&STEP_SIZE='1h'&QUANTITIES='4,9,20,24'&START_TIME='${formatDate(now)}'&STOP_TIME='${formatDate(tomorrow)}'`;
         
         const response = await axios.get(nasaUrl);
         // KLUCZOWE: Wysyłamy cały obiekt z NASA, żeby frontend widział .result
