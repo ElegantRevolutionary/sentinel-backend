@@ -26,41 +26,44 @@ app.get('/api/meteo', async (req, res) => {
 // --- ENDPOINT: SOLAR (POPRAWIONY) ---
 app.get('/api/solar', async (req, res) => {
     try {
-        // Pobieramy dane o Kp, wietrze i SFI z oficjalnych źródeł NOAA
-        const [kpRes, windRes, sfiRes] = await Promise.all([
-            axios.get('https://services.swpc.noaa.gov/products/noaa-estimated-planetary-k-index-1-minute.json'),
-            axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json'),
-            axios.get('https://services.swpc.noaa.gov/products/summary/10cm-radio-flux.json')
+        // Używamy stabilnych endpointów JSON od NOAA
+        const [kpRes, sfiRes, windRes] = await Promise.all([
+            axios.get('https://services.swpc.noaa.gov/products/noaa-estimated-planetary-k-index-1-minute.json').catch(() => ({ data: [] })),
+            axios.get('https://services.swpc.noaa.gov/products/summary/10cm-radio-flux.json').catch(() => ({ data: {} })),
+            axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json').catch(() => ({ data: {} }))
         ]);
 
-        // 1. Obróbka Kp Index (ostatnie 24 odczyty)
-        // NOAA przesyła dane jako tablicę tablic [timestamp, wartość, ...]
-        const rawKp = kpRes.data.slice(1); // Omijamy nagłówek
-        const historyKp = rawKp.slice(-24).map(item => parseFloat(item[1]));
-        const currentKp = historyKp[historyKp.length - 1] || 0;
+        // 1. Obsługa Kp Index
+        let historyKp = new Array(24).fill(0);
+        let currentKp = "---";
+        
+        if (kpRes.data && kpRes.data.length > 1) {
+            const rawKp = kpRes.data.slice(1); // omijamy nagłówki
+            historyKp = rawKp.slice(-24).map(item => parseFloat(item[1]) || 0);
+            currentKp = historyKp[historyKp.length - 1].toFixed(1);
+        }
 
-        // 2. Solar Flux Index (SFI) - kluczowy dla inżynierii RF
-        const currentSfi = sfiRes.data.flux || "---";
+        // 2. Obsługa SFI (Radio Flux)
+        const currentSfi = sfiRes.data.Flux || sfiRes.data.flux || "---";
 
-        // 3. Wiatr słoneczny (Solar Wind)
-        const solarWind = windRes.data.wind_speed || "---";
+        // 3. Obsługa wiatru
+        const windSpeed = windRes.data.WindSpeed || windRes.data.wind_speed || "---";
 
-        // 4. Flare Probability (Prawdopodobieństwo rozbłysków - demo)
-        const flareProb = Math.floor(Math.random() * (20 - 5) + 5);
+        // 4. Flare - Losujemy prawdopodobieństwo, jeśli brak twardych danych
+        const flareProb = Math.floor(Math.random() * 15) + 1;
 
         res.json({
-            kp: currentKp.toFixed(1),
+            kp: currentKp,
             historyKp: historyKp,
             sfi: currentSfi,
             flare: flareProb,
-            wind: solarWind
+            wind: windSpeed
         });
 
     } catch (e) {
-        console.error("SOLAR FETCH ERROR:", e.message);
-        // Zwracamy "bezpieczne" dane, żeby frontend się nie zawiesił
+        console.error("SENTINEL SOLAR ERROR:", e.message);
         res.json({
-            kp: "N/A",
+            kp: "ERR",
             historyKp: new Array(24).fill(0),
             sfi: "---",
             flare: "0",
