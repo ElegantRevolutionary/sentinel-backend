@@ -90,7 +90,7 @@ app.get('/api/solar', async (req, res) => {
     }
 });
 
-app.get('api/moon', async (req, res) => {
+app.get('/api/moon', async (req, res) => {
     try {
        const now = new Date();
 const tomorrow = new Date(now);
