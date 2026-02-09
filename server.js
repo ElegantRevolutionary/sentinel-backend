@@ -4,7 +4,11 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+    origin: '*', // Pozwala na zapytania z każdego źródła (dla testów idealne)
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type']
+}));
 
 // --- KONFIGURACJA RADARU ---
 // RainViewer API używa unixowych timestampów w krokach co 10 min
@@ -36,9 +40,6 @@ app.get('/api/map/info', async (req, res) => {
 // Frontend teraz wyśle: /api/map/radar_static/{ts}/{z}/{x}/{y}.png
 app.get('/api/map/radar_static/:ts/:z/:x/:y.png', async (req, res) => {
     const { ts, z, x, y } = req.params;
-    
-    // Budujemy dynamiczny URL do RainViewer z zachowaniem parametrów z frontendu
-    // 256 to rozmiar kafelka, 1 to schemat kolorów, 1_1 to opcje wygładzania
     const url = `https://tilecache.rainviewer.com/v2/radar/${ts}/256/${z}/${x}/${y}/1/1_1.png`;
     
     try {
@@ -46,20 +47,19 @@ app.get('/api/map/radar_static/:ts/:z/:x/:y.png', async (req, res) => {
             url, 
             method: 'GET',
             responseType: 'stream',
-            timeout: 3000 // Nie czekamy w nieskończoność
+            timeout: 5000,
+            headers: { 'User-Agent': 'Sentinel-Dashboard-Project' } // Niektóre API blokują puste User-Agenty
         });
 
+        // Przekazujemy nagłówki CORS manualnie, jeśli middleware zawiedzie
+        res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'public, max-age=3600'); 
         response.data.pipe(res);
 
     } catch (e) {
-        // Logujemy błąd tylko dla nas, żeby widzieć co nie bangla
-        // console.log(`Błąd kafelka: ${ts} | URL: ${url}`);
-
-        // Zamiast 404, wysyłamy przezroczysty 1x1 PNG. 
-        // Dzięki temu mapa "nie mruga" i nie sypie błędami w konsoli
+        // Jeśli RainViewer sypnie błędem, nie pozwól, by Twój serwer odpowiedział 502
         const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Content-Type', 'image/png');
         res.send(transparentPixel);
     }
