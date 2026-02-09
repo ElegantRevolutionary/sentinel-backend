@@ -10,6 +10,19 @@ app.use(cors({
     allowedHeaders: ['Content-Type']
 }));
 
+// --- ENDPOINT: METEO (Open-Meteo) ---
+app.get('/api/meteo', async (req, res) => {
+    const { lat, lon } = req.query;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m,cloud_cover,dew_point_2m&hourly=temperature_2m,relative_humidity_2m,surface_pressure&daily=precipitation_sum,snowfall_sum,uv_index_max&timezone=auto`;
+
+    try {
+        const response = await axios.get(url);
+        res.json(response.data);
+    } catch (e) {
+        res.status(500).json({ error: 'Meteo API Error' });
+    }
+});
+
 // --- ENDPOINT: SOLAR (NASA & NOAA) ---
 app.get('/api/solar', async (req, res) => {
     try {
