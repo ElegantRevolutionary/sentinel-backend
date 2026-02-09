@@ -63,6 +63,27 @@ app.get('/api/meteo', async (req, res) => {
     }
 });
 
+// --- ENDPOINT: OWM TILES PROXY (Opady, Chmury, Temp) ---
+// Wywołanie: /api/map/owm/precipitation_new/8/137/95
+app.get('/api/map/owm/:layer/:z/:x/:y', async (req, res) => {
+    const { layer, z, x, y } = req.params;
+    const OWM_KEY = '86667635417f91e6f0f60c2215abc2c9'; // Twój klucz
+    const url = `https://tile.openweathermap.org/map/${layer}/${z}/${x}/${y}.png?appid=${OWM_KEY}`;
+
+    try {
+        const response = await axios({ url, responseType: 'stream', timeout: 5000 });
+        res.setHeader('Content-Type', 'image/png');
+        // Dodajemy cache, żeby nie męczyć API przy każdym przesunięciu mapy
+        res.setHeader('Cache-Control', 'public, max-age=3600'); 
+        response.data.pipe(res);
+    } catch (e) {
+        // W razie błędu wysyłamy przezroczysty pixel 1x1
+        const transparent = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+        res.setHeader('Content-Type', 'image/png');
+        res.send(transparent);
+    }
+});
+
 // --- ENDPOINT: SOLAR (NASA & NOAA) ---
 app.get('/api/solar', async (req, res) => {
     try {
