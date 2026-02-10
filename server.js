@@ -62,17 +62,19 @@ app.get('/api/solar', async (req, res) => {
             flareProb = flareRes.data[0].m_class_1_day || "0";
         }
 
-        // --- X-RAY FLUX (GOES-16/18) ---
+       // --- X-RAY FLUX (GOES-16/18) ---
         let xrayHistory = [];
-        if (xrayRes?.data) {
-            // Wybieramy pasmo 0.1-0.8nm (standard dla klasyfikacji A, B, C, M, X)
+        // Sprawdzamy, czy xrayRes.data istnieje i CZY JEST TABLICĄ
+        if (xrayRes && xrayRes.data && Array.isArray(xrayRes.data)) {
             xrayHistory = xrayRes.data
-                .filter(d => d.energy === '0.1-0.8nm')
-                .slice(-60) // Ostatnia godzina (odczyty co 1 min)
+                .filter(d => d && d.energy === '0.1-0.8nm')
+                .slice(-60)
                 .map(d => ({
                     time: d.time_tag,
                     val: d.flux
                 }));
+        } else {
+            console.warn("SENTINEL: X-Ray data is not an array or is missing.");
         }
 
         res.json({
