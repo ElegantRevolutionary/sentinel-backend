@@ -26,12 +26,14 @@ app.get('/api/solar', async (req, res) => {
     };
 
     try {
-        const [kpRes, sfiRes, windRes, flareRes, xrayRes] = await Promise.all([
+        const [kpRes, sfiRes, windRes, flareRes, xrayRes, scalesRes] = await Promise.all([
             axios.get('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', axiosConfig).catch(() => null),
             axios.get('https://services.swpc.noaa.gov/products/10cm-flux-30-day.json', axiosConfig).catch(() => null),
             axios.get('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json', axiosConfig).catch(() => null),
             axios.get('https://services.swpc.noaa.gov/json/solar_probabilities.json', axiosConfig).catch(() => null),
-            axios.get('https://services.swpc.noaa.gov/json/goes/primary/xrays-7-day.json', axiosConfig).catch(() => null)
+            axios.get('https://services.swpc.noaa.gov/json/goes/primary/xrays-7-day.json', axiosConfig).catch(() => null),
+            // Używamy widocznego na liście pliku noaa-scales.json
+            axios.get('https://services.swpc.noaa.gov/products/noaa-scales.json', axiosConfig).catch(() => null)
         ]);
 
         // --- KP INDEX ---
@@ -43,7 +45,7 @@ app.get('/api/solar', async (req, res) => {
             currentKp = historyKp[historyKp.length - 1].toFixed(1);
         }
 
-        // --- SFI (10.7cm Flux) ---
+        // --- SFI ---
         let currentSfi = "---";
         if (sfiRes?.data?.length > 1) {
             const lastRow = sfiRes.data[sfiRes.data.length - 1];
@@ -56,15 +58,25 @@ app.get('/api/solar', async (req, res) => {
             wind = windRes.data.WindSpeed || windRes.data.wind_speed || "---";
         }
 
-        // --- FLARE PROBABILITY (z podkreślnikiem solar_probabilities) ---
+        // --- FLARE PROBABILITY ---
         let flareProb = "0";
         if (flareRes?.data?.length > 0) {
             flareProb = flareRes.data[0].m_class_1_day || "0";
         }
 
-       // --- X-RAY FLUX (GOES-16/18) ---
+        // --- PROTON FLUX (z noaa-scales.json) ---
+        let protonValue = "0.10"; 
+        if (scalesRes?.data && scalesRes.data.s) {
+            // Skala S (Solar Radiation) informuje o poziomie burzy protonowej (0-5)
+            // Jeśli S0, to strumień jest w normie (poniżej 10 pfu)
+            const sScale = parseInt(scalesRes.data.s.current);
+            // Mapujemy skalę na przybliżone wartości pfu dla dashboardu
+            const pfuMapping = ["0.15", "10", "100", "1000", "10000", "100000"];
+            protonValue = pfuMapping[sScale] || "0.15";
+        }
+
+        // --- X-RAY FLUX ---
         let xrayHistory = [];
-        // Sprawdzamy, czy xrayRes.data istnieje i CZY JEST TABLICĄ
         if (xrayRes && xrayRes.data && Array.isArray(xrayRes.data)) {
             xrayHistory = xrayRes.data
                 .filter(d => d && d.energy === '0.1-0.8nm')
@@ -73,8 +85,6 @@ app.get('/api/solar', async (req, res) => {
                     time: d.time_tag,
                     val: d.flux
                 }));
-        } else {
-            console.warn("SENTINEL: X-Ray data is not an array or is missing.");
         }
 
         res.json({
@@ -83,6 +93,7 @@ app.get('/api/solar', async (req, res) => {
             sfi: currentSfi,
             flare: flareProb,
             wind: wind,
+            proton: protonValue, // To przesyłamy do frontendu
             xrayHistory: xrayHistory
         });
 
@@ -91,7 +102,6 @@ app.get('/api/solar', async (req, res) => {
         res.status(500).json({ error: "NOAA API Connection Failed" });
     }
 });
-
 // server.js
 app.get('/api/moon', async (req, res) => {
     try {
