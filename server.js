@@ -76,16 +76,23 @@ app.get('/api/solar', async (req, res) => {
         }
 
         // --- X-RAY FLUX ---
-        let xrayHistory = [];
-        if (xrayRes && xrayRes.data && Array.isArray(xrayRes.data)) {
-            xrayHistory = xrayRes.data
-                .filter(d => d && d.energy === '0.1-0.8nm')
-                .slice(-60)
-                .map(d => ({
-                    time: d.time_tag,
-                    val: d.flux
-                }));
-        }
+let xrayHistory = [];
+if (xrayRes && xrayRes.data && Array.isArray(xrayRes.data)) {
+    xrayHistory = xrayRes.data
+        .filter(d => d && d.energy === '0.1-0.8nm')
+        .slice(-60)
+        .map(d => {
+            // ZABEZPIECZENIE: Chart.js Logarithmic Scale wywala się przy zerze lub nullu
+            // Jeśli flux jest zerem, nieistnieje lub jest ekstremalnie mały,
+            // ustawiamy "podłogę" na poziomie 1e-9 (tło klasy A).
+            const safeFlux = (d.flux && d.flux > 0) ? d.flux : 1e-9;
+            
+            return {
+                time: d.time_tag,
+                val: safeFlux
+            };
+        });
+}
 
         res.json({
             kp: currentKp,
